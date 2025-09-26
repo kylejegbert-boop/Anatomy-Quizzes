@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Anatomy Quiz Builder & Player</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    max-width: 900px;
+    margin: 20px auto;
+    background: #f4f6f8;
+    color: #2c3e50;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  #top-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  button, select, input[type=file] {
+    font-size: 1rem;
+    padding: 6px 12px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  button {
+    background: #3498db;
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    user-select: none;
+  }
+  button:hover:not(:disabled) {
+    background: #2980b9;
+  }
+  button:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+  }
+  #image-container {
+    position: relative;
+    border: 2px solid #ccc;
+    background: white;
+    box-shadow: 0 4px 10px rgb(0 0 0 / 0.1);
+    max-width: 100%;
+    margin: 0 auto 20px auto;
+    cursor: default;
+  }
+  #uploaded-image {
+    display: block;
+    max-width: 100%;
+    user-select: none;
+    pointer-events: none;
+  }
+  .hotspot {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 6px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+    background: #3498db;
+    transition: background-color 0.3s ease;
+  }
+  .hotspot:hover {
+    background: #2980b9;
+  }
+  .hotspot.correct {
+    background-color: #27ae60 !important;
+    box-shadow: 0 0 12px #27ae60 !important;
+    cursor: default;
+  }
+  .hotspot.incorrect {
+    background-color: #c0392b !important;
+    box-shadow: 0 0 12px #c0392b !important;
+  }
+  .hotspot.dragging {
+    opacity: 0.7;
+  }
+  #hotspot-list {
+    max-height: 160px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    background: white;
+    padding: 6px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+  }
+  #hotspot-list div {
+    padding: 4px 8px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    user-select: none;
+  }
+  #hotspot-list div.selected {
+    background: #3498db;
+    color: white;
+  }
+  #hotspot-list div:hover:not(.selected) {
+    background: #ddd;
+  }
+  form {
+    background: white;
+    border-radius: 6px;
+    padding: 12px;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.1);
+    max-width: 400px;
+    margin-bottom: 20px;
+  }
+  form > div {
+    margin-bottom: 10px;
+  }
+  label {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+  }
+  input[type=text], select {
+    width: 100%;
+    padding: 6px;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+  }
+  #question-text, #feedback {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  #feedback {
+    min-height: 30px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+  #instructions {
+    text-align: center;
+    font-style: italic;
+    margin-bottom: 20px;
+    color: #555;
+  }
+  #mode-indicator {
+    text-align: center;
+    font-weight: 700;
+    margin-bottom: 15px;
+  }
+
+/* GitHub loader controls */
+.gh-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin: 8px 0; }
+.gh-controls input { max-width: 230px; padding: 6px 8px; }
+.gh-controls button { padding: 6px 10px; }
+/* Quiz gallery grid */
+#quiz-gallery-section { margin: 14px 0 8px; }
+#quiz-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.quiz-card { border: 1px solid #ddd; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08); cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+.quiz-card:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.12); }
+.quiz-thumb { width: 100%; height: 110px; object-fit: cover; display:block; background:#f4f4f4; }
+.quiz-meta { padding: 8px 10px; }
+.quiz-title { font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quiz-count { font-size: 0.8rem; color: #666; }
+.quiz-card.active { outline: 2px solid #2c7be5; }
+
+/* Refresh control */
+#gh-refresh { padding: 6px 10px; }
+
+/* Player-only: hide all editing controls/forms */
+#image-upload-container,
+#json-upload,
+#new-quiz-btn,
+#save-quiz-btn,
+#delete-quiz-btn,
+#hotspot-form,
+#hotspot-list,
+#save-hotspot-btn,
+#delete-hotspot-btn,
+#image-upload,
+#question-input,
+#option1-input,
+#option2-input,
+#option3-input,
+#github-loader,
+#cancel-edit-btn { display: none !important; }
+#toggle-mode-btn { display: none !important; } /* lock to Play mode */
+
+/* Force hide any Back-to-Edit button */
+#back-to-edit-btn { display:none !important; }
+
+/* --- Dark Mode Player --- */
+body {
+  background-color: #121212;
+  color: #eee;
+  font-family: system-ui, sans-serif;
+}
+button, select {
+  background: #1e1e1e;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+button:hover, select:hover {
+  background: #2c2c2c;
+}
+.quiz-card {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  color: #eee;
+}
+#results-panel {
+  margin-top: 20px;
+  padding: 16px;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  text-align: center;
+}
+
+/* Force hide Back-to-Edit button */
+#back-to-edit-btn { display:none !important; }
+
+/* Force hide Back-to-Edit button */
+#back-to-edit-btn { display:none !important; }
+
+/* Hide quiz dropdown */
+#quiz-select { display:none !important; }
+
+/* Improved gallery cards */
+.quiz-card {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 12px;
+  color: #eee;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.quiz-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 12px rgba(255,255,255,0.15);
+}
+
+/* Results panel styling */
+#results-panel {
+  margin-top: 20px;
+  padding: 20px;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  text-align: center;
+}
+#results-panel h3 {
+  margin-bottom: 12px;
+  font-size: 1.4rem;
+}
+#results-panel .accuracy {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 10px 0;
+}
+#results-panel .progress {
+  width: 100%;
+  height: 20px;
+  background: #333;
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+#results-panel .progress-bar {
+  height: 100%;
+  background: #4caf50;
+  text-align: center;
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 20px;
+}
+#results-panel button {
+  margin: 8px;
+  padding: 8px 14px;
+}
+
+/* Hide the Back to Edit button */
+#exit-play-btn { display:none !important; }
+
+/* Always visible smaller hotspots */
+.hotspot {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50%;
+  background-color: rgba(255,255,255,0.3);
+  border: 2px solid #aaa;
+}
+.hotspot:hover {
+  background-color: rgba(255,255,255,0.6);
+}
+.hotspot-correct {
+  background-color: rgba(76, 175, 80, 0.5) !important;
+  border: 2px solid #4caf50 !important;
+}
+</style>
+</head>
+<body>
+
+<h1>Anatomy Quiz Builder & Player</h1>
+
+<div id="top-bar">
+  <button id="new-quiz-btn" title="Start a new blank quiz">New Quiz</button>
+  <input type="file" id="json-upload" accept=".json" multiple title="Upload quiz JSON files" />
+  <select id="quiz-select" disabled title="Select loaded quiz"></select>
+  <button id="delete-quiz-btn" disabled title="Delete selected quiz">Delete Quiz</button>
+  <button id="save-quiz-btn" disabled title="Save current quiz to file">Save Quiz</button>
+  <button id="toggle-mode-btn" disabled title="Switch between Edit and Play mode">
+<div id="github-loader" class="gh-controls" title="Load quizzes directly from a GitHub repo">
+  <input id="gh-repo" placeholder="owner/repo" title="e.g. username/my-quiz-repo" />
+  <input id="gh-path" placeholder="folder (optional)" title="Optional subfolder with JSON files" />
+  <input id="gh-branch" placeholder="branch" value="main" title="Branch name (default main)" />
+  <button id="gh-load-btn" title="Load all .json quizzes from GitHub">Load from GitHub</button>
+</div>
+Play Mode</button>
+</div>
+
+
+
+<div id="mode-indicator">
+<!-- Quiz Gallery -->
+<div id="quiz-gallery-section">
+  <h3 style="display:flex;align-items:center;gap:8px;">Quizzes <button id="gh-refresh" title="Refresh from GitHub">Refresh</button><label style="display:flex;align-items:center;gap:6px;font-size:.9rem;"><input type="checkbox" id="gh-auto-refresh" /> Auto-refresh</label></h3>
+  <div id="quiz-gallery" aria-label="Quiz thumbnails grid"></div>
+</div>
+Mode: <span id="mode-label">No quiz loaded</span></div>
+
+<div id="image-container" title="Quiz Image">
+  <img id="uploaded-image" alt="Quiz anatomy" />
+</div>
+
+<!-- Hotspot form: shown in Edit mode -->
+<form id="hotspot-form" style="display:none;">
+  <h3>Hotspot Details</h3>
+  <div><label for="question-input">Anatomy Name (Question)</label><input type="text" id="question-input" required /></div>
+  <div><label for="option1-input">Option 1</label><input type="text" id="option1-input" required /></div>
+  <div><label for="option2-input">Option 2</label><input type="text" id="option2-input" required /></div>
+  <div><label for="option3-input">Option 3</label><input type="text" id="option3-input" required /></div>
+  <div><label for="correct-option-select">Correct Option</label>
+    <select id="correct-option-select" required>
+      <option value="0">Option 1</option>
+      <option value="1">Option 2</option>
+      <option value="2">Option 3</option>
+    </select>
+  </div>
+  <button type="submit" id="save-hotspot-btn">Save Hotspot</button>
+  <button type="button" id="delete-hotspot-btn">Delete Hotspot</button>
+  <button type="button" id="cancel-edit-btn">Cancel</button>
+</form>
+
+<!-- Hotspot list: shown in Edit mode -->
+<div id="hotspot-list" style="display:none;"></div>
+
+<!-- Play mode UI -->
+<div id="quiz-ui" style="display:none;">
+  <div id="question-text"></div>
+  <div id="feedback"></div>
+  <button id="exit-play-btn" style="display:block; margin: 0 auto 20px auto;">Back to Edit</button>
+</div>
+
+<!-- Upload image for new quiz -->
+<div id="image-upload-container" style="text-align:center; margin-bottom:20px; display:none;">
+  <label for="image-upload">Upload Image for Quiz</label><br />
+  <input type="file" id="image-upload" accept="image/*" />
+</div>
+
+<script>
+(() => {
+  // Elements
+  const newQuizBtn = document.getElementById('new-quiz-btn');
+  const jsonUpload = document.getElementById('json-upload');
+  const quizSelect = document.getElementById('quiz-select');
+  const deleteQuizBtn = document.getElementById('delete-quiz-btn');
+  const saveQuizBtn = document.getElementById('save-quiz-btn');
+  const toggleModeBtn = document.getElementById('toggle-mode-btn');
+  const uploadedImage = document.getElementById('uploaded-image');
+  const imageContainer = document.getElementById('image-container');
+  const hotspotForm = document.getElementById('hotspot-form');
+  const questionInput = document.getElementById('question-input');
+  const optionInputs = [
+    document.getElementById('option1-input'),
+    document.getElementById('option2-input'),
+    document.getElementById('option3-input')
+  ];
+  const correctOptionSelect = document.getElementById('correct-option-select');
+  const saveHotspotBtn = document.getElementById('save-hotspot-btn');
+  const deleteHotspotBtn = document.getElementById('delete-hotspot-btn');
+  const cancelEditBtn = document.getElementById('cancel-edit-btn');
+  const hotspotList = document.getElementById('hotspot-list');
+  const quizUI = document.getElementById('quiz-ui');
+  const questionTextDiv = document.getElementById('question-text');
+  const feedbackDiv = document.getElementById('feedback');
+  const exitPlayBtn = document.getElementById('exit-play-btn');
+  const imageUploadContainer = document.getElementById('image-upload-container');
+  const imageUploadInput = document.getElementById('image-upload');
+  const modeLabel = document.getElementById('mode-label');
+
+  // App state
+  let quizzes = []; // {name, data: {imageSrc, hotspots: [...]}}
+  let currentQuizIndex = -1;
+  let currentHotspotIndex = null; // editing hotspot index
+  let inPlayMode = false;
+  let currentQuestionIndex = 0;
+
+  // Helper: update quiz dropdown
+  function updateQuizSelect() {
+    quizSelect.innerHTML = '<option value="">-- Select a quiz --</option>';
+    quizzes.forEach((q, i) => {
+      const option = document.createElement('option');
+      option.value = i;
+      option.textContent = q.name;
+      quizSelect.appendChild(option);
+    });
+    quizSelect.disabled = quizzes.length === 0;
+    deleteQuizBtn.disabled = quizzes.length === 0 || currentQuizIndex === -1;
+    saveQuizBtn.disabled = quizzes.length === 0 || currentQuizIndex === -1;
+    toggleModeBtn.disabled = quizzes.length === 0 || currentQuizIndex === -1;
+    if (currentQuizIndex >= 0) {
+      quizSelect.value = currentQuizIndex;
+    } else {
+      quizSelect.value = '';
+    }
+  }
+
+  // Show mode label
+  function updateModeLabel() {
+    if (currentQuizIndex === -1) {
+      modeLabel.textContent = 'No quiz loaded';
+    } else if (inPlayMode) {
+      modeLabel.textContent = 'Play Mode';
+    } else {
+      modeLabel.textContent = 'Edit Mode';
+    }
+  }
+
+  // Clear UI
+  function clearUI() {
+    uploadedImage.src = '';
+    removeAllHotspots();
+    hotspotList.innerHTML = '';
+    hotspotList.style.display = 'none';
+    hotspotForm.style.display = 'none';
+    quizUI.style.display = 'none';
+    imageUploadContainer.style.display = 'none';
+    questionTextDiv.textContent = '';
+    feedbackDiv.textContent = '';
+  }
+
+  // Remove hotspots from DOM
+  function removeAllHotspots() {
+    const dots = imageContainer.querySelectorAll('.hotspot');
+    dots.forEach(dot => dot.remove());
+  }
+
+  // Render hotspots as dots (editable or play mode)
+  function renderHotspots() {
+    removeAllHotspots();
+    if (currentQuizIndex === -1) return;
+
+    const hotspots = quizzes[currentQuizIndex].data.hotspots;
+    hotspots.forEach((hotspot, idx) => {
+      const dot = document.createElement('div');
+      dot.classList.add('hotspot');
+      dot.style.left = hotspot.xPercent + '%';
+      dot.style.top = hotspot.yPercent + '%';
+      dot.dataset.index = idx;
+
+      if (!inPlayMode) {
+        dot.title = `Hotspot ${idx + 1}: ${hotspot.question}`;
+        dot.style.cursor = 'grab';
+
+        // Select hotspot on click
+        dot.addEventListener('click', e => {
+          e.stopPropagation();
+          selectHotspot(idx);
+        });
+
+        // Drag to move
+        dot.addEventListener('mousedown', startDrag);
+      } else {
+        // Play mode: click to answer question
+        dot.addEventListener('click', e => {
+          e.stopPropagation();
+          handlePlayClick(idx);
+        });
+        dot.style.cursor = 'pointer';
+      }
+
+      imageContainer.appendChild(dot);
+    });
+  }
+
+  // Select hotspot for editing
+  function selectHotspot(idx) {
+    if (inPlayMode) return;
+    currentHotspotIndex = idx;
+    const hotspot = quizzes[currentQuizIndex].data.hotspots[idx];
+    questionInput.value = hotspot.question;
+    optionInputs.forEach((input, i) => input.value = hotspot.options[i] || '');
+    correctOptionSelect.value = hotspot.correctOption.toString();
+    hotspotForm.style.display = 'block';
+    hotspotList.querySelectorAll('div').forEach(div => div.classList.remove('selected'));
+    const selectedDiv = hotspotList.querySelector(`div[data-index="${idx}"]`);
+    if (selectedDiv) selectedDiv.classList.add('selected');
+  }
+
+  // Populate hotspot list in editor
+  function populateHotspotList() {
+    const hotspots = quizzes[currentQuizIndex].data.hotspots;
+    if (!hotspots.length) {
+      hotspotList.style.display = 'none';
+      return;
+    }
+    hotspotList.innerHTML = '';
+    hotspots.forEach((hotspot, idx) => {
+      const div = document.createElement('div');
+      div.textContent = `${idx + 1}. ${hotspot.question}`;
+      div.dataset.index = idx;
+      div.addEventListener('click', () => selectHotspot(idx));
+      hotspotList.appendChild(div);
+    });
+    hotspotList.style.display = 'block';
+  }
+
+  // Start drag to move hotspot (in edit mode)
+  let dragInfo = null;
+  function startDrag(e) {
+    if (inPlayMode) return;
+    e.preventDefault();
+    const dot = e.target;
+    const idx = Number(dot.dataset.index);
+    if (isNaN(idx)) return;
+    dragInfo = {dot, idx, startX: e.clientX, startY: e.clientY};
+    dot.classList.add('dragging');
+    window.addEventListener('mousemove', dragMove);
+    window.addEventListener('mouseup', dragEnd);
+  }
+  function dragMove(e) {
+    if (!dragInfo) return;
+    e.preventDefault();
+    const {dot, idx, startX, startY} = dragInfo;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    // Calculate new position as percent inside image container
+    const rect = imageContainer.getBoundingClientRect();
+    let leftPx = rect.left + (dot.offsetLeft + dx);
+    let topPx = rect.top + (dot.offsetTop + dy);
+
+    // Clamp inside image container
+    leftPx = Math.min(Math.max(leftPx, rect.left), rect.right);
+    topPx = Math.min(Math.max(topPx, rect.top), rect.bottom);
+
+    // Calculate percentages
+    const xPercent = ((leftPx - rect.left) / rect.width) * 100;
+    const yPercent = ((topPx - rect.top) / rect.height) * 100;
+
+    // Update hotspot data and dot position
+    quizzes[currentQuizIndex].data.hotspots[idx].xPercent = Math.min(Math.max(xPercent, 0), 100);
+    quizzes[currentQuizIndex].data.hotspots[idx].yPercent = Math.min(Math.max(yPercent, 0), 100);
+
+    dot.style.left = quizzes[currentQuizIndex].data.hotspots[idx].xPercent + '%';
+    dot.style.top = quizzes[currentQuizIndex].data.hotspots[idx].yPercent + '%';
+
+    // Update drag start for smooth movement
+    dragInfo.startX = e.clientX;
+    dragInfo.startY = e.clientY;
+  }
+  function dragEnd(e) {
+    if (!dragInfo) return;
+    dragInfo.dot.classList.remove('dragging');
+    dragInfo = null;
+    window.removeEventListener('mousemove', dragMove);
+    window.removeEventListener('mouseup', dragEnd);
+  }
+
+  // Handle image upload for new quiz or current quiz image change
+  imageUploadInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      if (currentQuizIndex === -1) {
+        alert('No quiz selected.');
+        return;
+      }
+      quizzes[currentQuizIndex].data.imageSrc = evt.target.result;
+      uploadedImage.src = evt.target.result;
+      renderHotspots();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+
+  // Add new quiz (blank)
+  newQuizBtn.addEventListener('click', () => {
+    const quizName = prompt('Enter new quiz name');
+    if (!quizName) return;
+    quizzes.push({
+      name: quizName,
+      data: {
+        imageSrc: '',
+        hotspots: []
+      }
+    });
+    currentQuizIndex = quizzes.length - 1;
+    inPlayMode = false;
+    updateQuizSelect();
+    clearUI();
+    updateModeLabel();
+
+    // Show image upload for this new quiz
+    imageUploadContainer.style.display = 'block';
+    uploadedImage.src = '';
+    removeAllHotspots();
+    hotspotList.style.display = 'none';
+    hotspotForm.style.display = 'none';
+    quizUI.style.display = 'none';
+  });
+
+  // Load quizzes from JSON files
+  jsonUpload.addEventListener('change', e => {
+    const files = e.target.files;
+    if (!files.length) return;
+
+    let filesProcessed = 0;
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = evt => {
+        try {
+          const quiz = JSON.parse(evt.target.result);
+          if (!quiz.name || !quiz.data || !quiz.data.imageSrc || !Array.isArray(quiz.data.hotspots)) {
+            alert(`Invalid quiz file: ${file.name}`);
+            return;
+          }
+          quizzes.push(quiz);
+          filesProcessed++;
+          if (filesProcessed === files.length) {
+            currentQuizIndex = quizzes.length - 1;
+            inPlayMode = false;
+            updateQuizSelect();
+            loadQuiz(currentQuizIndex);
+          }
+        } catch(err) {
+          alert(`Error parsing quiz file: ${file.name}`);
+        }
+      };
+      reader.readAsText(file);
+    }
+    jsonUpload.value = ''; // reset file input
+  });
+
+  // Select quiz from dropdown
+  quizSelect.addEventListener('change', e => {
+    const val = e.target.value;
+    if (val === '') {
+      currentQuizIndex = -1;
+      clearUI();
+      updateModeLabel();
+      return;
+    }
+    currentQuizIndex = Number(val);
+    inPlayMode = false;
+    updateModeLabel();
+    loadQuiz(currentQuizIndex);
+  });
+
+  // Load quiz into UI (edit mode by default)
+  function loadQuiz(index) {
+    if (index < 0 || index >= quizzes.length) return;
+    const quiz = quizzes[index];
+    clearUI();
+    if (!quiz.data.imageSrc) {
+      imageUploadContainer.style.display = 'block';
+      uploadedImage.src = '';
+    } else {
+      uploadedImage.src = quiz.data.imageSrc;
+      imageUploadContainer.style.display = 'none';
+    }
+    renderHotspots();
+    populateHotspotList();
+    hotspotForm.style.display = 'none';
+    quizUI.style.display = 'none';
+
+    saveQuizBtn.disabled = false;
+    deleteQuizBtn.disabled = false;
+    toggleModeBtn.disabled = false;
+    toggleModeBtn.textContent = 'Play Mode';
+
+    updateModeLabel();
+  }
+
+  // Delete quiz
+  deleteQuizBtn.addEventListener('click', () => {
+    if (currentQuizIndex === -1) return;
+    if (!confirm(`Delete quiz "${quizzes[currentQuizIndex].name}"? This cannot be undone.`)) return;
+    quizzes.splice(currentQuizIndex, 1);
+    currentQuizIndex = quizzes.length ? 0 : -1;
+    updateQuizSelect();
+    if (currentQuizIndex !== -1) {
+      loadQuiz(currentQuizIndex);
+    } else {
+      clearUI();
+      updateModeLabel();
+    }
+  });
+
+  // Save quiz to JSON file
+  saveQuizBtn.addEventListener('click', () => {
+    if (currentQuizIndex === -1) return;
+    const quiz = quizzes[currentQuizIndex];
+    const blob = new Blob([JSON.stringify(quiz, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${quiz.name.replace(/\s+/g, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Toggle mode between edit and play
+  toggleModeBtn.addEventListener('click', () => {
+    if (currentQuizIndex === -1) return;
+    if (inPlayMode) {
+      // Switch to Edit mode
+      inPlayMode = false;
+      toggleModeBtn.textContent = 'Play Mode';
+      loadQuiz(currentQuizIndex);
+    } else {
+      // Switch to Play mode
+      if (!quizzes[currentQuizIndex].data.imageSrc) {
+        alert('Upload an image before playing the quiz.');
+        return;
+      }
+      if (quizzes[currentQuizIndex].data.hotspots.length === 0) {
+        alert('Add hotspots before playing the quiz.');
+        return;
+      }
+      inPlayMode = true;
+      currentQuestionIndex = 0;
+      enterPlayMode();
+      toggleModeBtn.textContent = 'Edit Mode';
+    }
+    updateModeLabel();
+  });
+
+  // Enter play mode UI
+  function enterPlayMode() {
+    clearUI();
+    quizUI.style.display = 'block';
+    uploadedImage.src = quizzes[currentQuizIndex].data.imageSrc;
+    renderHotspots();
+    hotspotList.style.display = 'none';
+    hotspotForm.style.display = 'none';
+    imageUploadContainer.style.display = 'none';
+    showCurrentQuestion();
+  }
+
+  // Show current question in play mode
+  function showCurrentQuestion() {
+    const hotspots = quizzes[currentQuizIndex].data.hotspots;
+    if (currentQuestionIndex >= hotspots.length) {
+      questionTextDiv.textContent = '🎉 Quiz complete! Great job!';
+      feedbackDiv.textContent = '';
+      removeHotspotStates();
+      return;
+    }
+    questionTextDiv.textContent = `Identify: ${hotspots[currentQuestionIndex].question}`;
+    feedbackDiv.textContent = 'Click the correct hotspot.';
+    removeHotspotStates();
+  }
+
+  // Remove correct/incorrect styles from hotspots in play mode
+  function removeHotspotStates() {
+    const dots = imageContainer.querySelectorAll('.hotspot');
+    dots.forEach(dot => {
+      dot.classList.remove('correct', 'incorrect');
+    });
+  }
+
+  // Handle click on hotspot during play mode
+  function handlePlayClick(clickedIndex) {
+    const hotspots = quizzes[currentQuizIndex].data.hotspots;
+    if (currentQuestionIndex >= hotspots.length) return;
+
+    if (clickedIndex === currentQuestionIndex) {
+      // Correct answer
+      feedbackDiv.textContent = '✅ Correct!';
+      markHotspot(clickedIndex, 'correct');
+      currentQuestionIndex++;
+      if (currentQuestionIndex < hotspots.length) {
+        setTimeout(() => {
+          showCurrentQuestion();
+        }, 1200);
+      } else {
+        setTimeout(() => {
+          questionTextDiv.textContent = '🎉 Quiz complete! Great job!';
+          feedbackDiv.textContent = '';
+          removeHotspotStates();
+        }, 1200);
+      }
+    } else {
+      // Incorrect
+      feedbackDiv.textContent = '❌ Incorrect, try again.';
+      markHotspot(clickedIndex, 'incorrect');
+      setTimeout(() => {
+        feedbackDiv.textContent = 'Click the correct hotspot.';
+        removeHotspotStates();
+      }, 1000);
+    }
+  }
+
+  // Mark hotspot with class correct/incorrect
+  function markHotspot(idx, cls) {
+    const dots = imageContainer.querySelectorAll('.hotspot');
+    if (dots[idx]) {
+      dots[idx].classList.add(cls);
+    }
+  }
+
+  // Hotspot form events
+
+  // Save hotspot changes (add new or update)
+  hotspotForm.addEventListener('submit', e => {
+    e.preventDefault();
+    if (currentQuizIndex === -1) return;
+
+    const question = questionInput.value.trim();
+    const options = optionInputs.map(input => input.value.trim());
+    const correctOption = Number(correctOptionSelect.value);
+
+    if (!question || options.some(opt => !opt)) {
+      alert('Fill out question and all options.');
+      return;
+    }
+    if (correctOption < 0 || correctOption > 2) {
+      alert('Select a correct option.');
+      return;
+    }
+
+    const quiz = quizzes[currentQuizIndex];
+    if (currentHotspotIndex === null) {
+      alert('No hotspot selected.');
+      return;
+    }
+
+    const hotspot = quiz.data.hotspots[currentHotspotIndex];
+    hotspot.question = question;
+    hotspot.options = options;
+    hotspot.correctOption = correctOption;
+
+    populateHotspotList();
+    selectHotspot(currentHotspotIndex);
+  });
+
+  // Delete hotspot button
+  deleteHotspotBtn.addEventListener('click', () => {
+    if (currentQuizIndex === -1 || currentHotspotIndex === null) return;
+    if (!confirm('Delete selected hotspot?')) return;
+
+    quizzes[currentQuizIndex].data.hotspots.splice(currentHotspotIndex, 1);
+    currentHotspotIndex = null;
+    hotspotForm.style.display = 'none';
+    populateHotspotList();
+    renderHotspots();
+  });
+
+  // Cancel editing hotspot
+  cancelEditBtn.addEventListener('click', () => {
+    currentHotspotIndex = null;
+    hotspotForm.style.display = 'none';
+    hotspotList.querySelectorAll('div').forEach(div => div.classList.remove('selected'));
+  });
+
+  // Clicking image in edit mode adds new hotspot
+  imageContainer.addEventListener('click', e => {
+    if (inPlayMode) return;
+    if (currentQuizIndex === -1) {
+      alert('Create or load a quiz first.');
+      return;
+    }
+    if (!uploadedImage.src) {
+      alert('Upload an image first.');
+      return;
+    }
+    const rect = imageContainer.getBoundingClientRect();
+    const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+
+    // Add a new hotspot at click location with default question/options
+    const newHotspot = {
+      xPercent: Math.min(Math.max(xPercent, 0), 100),
+      yPercent: Math.min(Math.max(yPercent, 0), 100),
+      question: 'New Anatomy Name',
+      options: ['Option 1', 'Option 2', 'Option 3'],
+      correctOption: 0
+    };
+    quizzes[currentQuizIndex].data.hotspots.push(newHotspot);
+    renderHotspots();
+    populateHotspotList();
+    selectHotspot(quizzes[currentQuizIndex].data.hotspots.length - 1);
+  });
+
+  // Exit play mode button
+  exitPlayBtn.addEventListener('click', () => {
+    if (currentQuizIndex === -1) return;
+    inPlayMode = false;
+    updateModeLabel();
+    loadQuiz(currentQuizIndex);
+    toggleModeBtn.textContent = 'Play Mode';
+  });
+
+  // Initialize empty UI
+  updateQuizSelect();
+  updateModeLabel();
+
+  // --- GitHub loader: DOM handles ---
+  const ghRepoInput   = document.getElementById('gh-repo');
+  const ghPathInput   = document.getElementById('gh-path');
+  const ghBranchInput = document.getElementById('gh-branch');
+  const ghLoadBtn     = document.getElementById('gh-load-btn');
+
+  // --- GitHub loading helpers ---
+  async function githubListJsonFiles({ owner, repo, path = '', branch = 'main' }) {
+    const encPath = path ? encodeURIComponent(path) : '';
+    const api = `https://api.github.com/repos/${owner}/${repo}/contents/${encPath}?ref=${encodeURIComponent(branch)}`;
+    const res = await fetch(api, { headers: { 'Accept': 'application/vnd.github+json' } });
+    if (!res.ok) throw new Error(`GitHub API error ${res.status} – check repo/path/branch`);
+    const data = await res.json();
+    const items = Array.isArray(data) ? data : [data];
+    return items
+      .filter(it => it.type === 'file' && /\.json$/i.test(it.name) && it.download_url)
+      .map(it => ({ name: it.name.replace(/\.json$/i, ''), url: it.download_url }));
+  }
+
+  async function fetchQuizJson(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to download ${url} (${res.status})`);
+    return res.json();
+  }
+
+  async function loadQuizzesFromGitHub({ owner, repo, path = '', branch = 'main' }) {
+    const files = await githubListJsonFiles({ owner, repo, path, branch });
+    if (!files.length) throw new Error('No .json quiz files found at that location.');
+
+    const loaded = [];
+    for (const f of files) {
+      try {
+        const quiz = await fetchQuizJson(f.url);
+        if (!quiz || !quiz.data || !quiz.data.imageSrc || !Array.isArray(quiz.data.hotspots)) {
+          console.warn('Skipping invalid quiz schema:', f.url);
+          continue;
+        }
+        if (!quiz.name) quiz.name = f.name;
+        loaded.push(quiz);
+      } catch (e) {
+        console.warn('Skipping bad quiz:', f.url, e);
+      }
+    }
+    if (!loaded.length) throw new Error('Found JSONs, but none matched the expected quiz schema.');
+
+    const startLen = quizzes.length;
+    quizzes.push(...loaded);
+    currentQuizIndex = quizzes.length - 1;
+    inPlayMode = false;
+
+    updateQuizSelect();
+    loadQuiz(currentQuizIndex);
+
+    const added = quizzes.length - startLen;
+    alert(`Loaded ${added} quiz(es) from GitHub.`);
+  }
+
+  function parseOwnerRepoFromInput(repoStr) {
+    let owner = '', repo = '';
+    if (/^https?:\/\//i.test(repoStr)) {
+      try {
+        const u = new URL(repoStr);
+        const parts = u.pathname.split('/').filter(Boolean);
+        owner = parts[0];
+        repo  = parts[1];
+        const idxTree = parts.indexOf('tree');
+        const idxBlob = parts.indexOf('blob');
+        if (idxTree > -1 || idxBlob > -1) {
+          const idx = Math.max(idxTree, idxBlob);
+          const parsedBranch = parts[idx + 1];
+          const parsedPath = parts.slice(idx + 2).join('/');
+          if (parsedBranch && !ghBranchInput.value) ghBranchInput.value = parsedBranch;
+          if (parsedPath && !ghPathInput.value) ghPathInput.value = parsedPath;
+        }
+      } catch {
+        throw new Error('Could not parse that GitHub URL.');
+      }
+    } else {
+      const pair = repoStr.split('/');
+      if (pair.length !== 2) throw new Error('Please enter "owner/repo" or a valid GitHub URL.');
+      [owner, repo] = pair;
+    }
+    return { owner, repo };
+  }
+
+  if (ghLoadBtn) {
+    ghLoadBtn.addEventListener('click', async () => {
+      const repoStr = (ghRepoInput?.value || '').trim();
+      const pathStr = (ghPathInput?.value || '').trim();
+      const branch  = (ghBranchInput?.value || 'main').trim();
+      let owner = '', repo = '';
+      try {
+        ({ owner, repo } = parseOwnerRepoFromInput(repoStr));
+      } catch (e) {
+        alert(e.message || 'Invalid repository input.');
+        return;
+      }
+
+      try {
+        if (toggleModeBtn) toggleModeBtn.disabled = true;
+        if (deleteQuizBtn) deleteQuizBtn.disabled = true;
+        if (saveQuizBtn)   saveQuizBtn.disabled = true;
+        if (quizSelect)    quizSelect.disabled = true;
+
+        await loadQuizzesFromGitHub({ owner, repo, path: pathStr, branch });
+      } catch (e) {
+        alert(e.message || 'Failed to load quizzes from GitHub.');
+      } finally {
+        if (quizSelect) quizSelect.disabled = false;
+        if (toggleModeBtn) toggleModeBtn.disabled = false;
+        if (deleteQuizBtn) deleteQuizBtn.disabled = false;
+        if (saveQuizBtn)   saveQuizBtn.disabled = false;
+        updateQuizSelect();
+      }
+    });
+  }
+
+  // --- Quiz Gallery ---
+  const quizGallery = document.getElementById('quiz-gallery');
+  function renderQuizGallery() {
+    if (!quizGallery) return;
+    quizGallery.innerHTML = '';
+    quizzes.forEach((q, idx) => {
+      const card = document.createElement('div');
+      card.className = 'quiz-card' + (idx === currentQuizIndex ? ' active' : '');
+      card.setAttribute('role','button');
+      card.setAttribute('tabindex','0');
+      card.setAttribute('aria-label', `Open quiz ${q.name || ('Quiz ' + (idx+1))}`);
+
+      const img = document.createElement('img');
+      img.className = 'quiz-thumb';
+      img.alt = (q.name || 'Quiz image');
+      img.src = (q.data && q.data.imageSrc) ? q.data.imageSrc : '';
+      img.onerror = () => { img.style.display='none'; };
+
+      const meta = document.createElement('div');
+      meta.className = 'quiz-meta';
+      const title = document.createElement('div');
+      title.className = 'quiz-title';
+      title.textContent = q.name || `Quiz ${idx+1}`;
+      const count = document.createElement('div');
+      count.className = 'quiz-count';
+      const n = (q.data && Array.isArray(q.data.hotspots)) ? q.data.hotspots.length : 0;
+      count.textContent = `${n} hotspot${n===1?'':'s'}`;
+
+      meta.appendChild(title);
+      meta.appendChild(count);
+      card.appendChild(img);
+      card.appendChild(meta);
+
+      const activate = () => {
+        currentQuizIndex = idx;
+        inPlayMode = false;
+        loadQuiz(currentQuizIndex);
+        updateQuizSelect();
+        highlightActiveCard();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+      card.addEventListener('click', activate);
+      card.addEventListener('keydown', (e)=>{ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }});
+
+      quizGallery.appendChild(card);
+    });
+  }
+  function highlightActiveCard(){
+    if (!quizGallery) return;
+    const cards = quizGallery.querySelectorAll('.quiz-card');
+    cards.forEach((c,i)=>{
+      if (i === currentQuizIndex) c.classList.add('active'); else c.classList.remove('active');
+    });
+  }
+
+  if (typeof updateQuizSelect === 'function') {
+    const __origUpdateQuizSelect = updateQuizSelect;
+    updateQuizSelect = function() {
+      __origUpdateQuizSelect();
+      renderQuizGallery();
+      highlightActiveCard();
+    };
+  }
+  if (typeof loadQuiz === 'function') {
+    const __origLoadQuiz = loadQuiz;
+    loadQuiz = function(index) {
+      const ret = __origLoadQuiz(index);
+      highlightActiveCard();
+      return ret;
+    };
+  }
+  renderQuizGallery();
+
+  // === Hard-wired autoload for Kyle's repo ===
+  (async function hardwiredAutoLoad(){
+    try {
+      if (window.__GH_ALREADY_LOADED) return;
+      window.__GH_ALREADY_LOADED = true;
+
+      const HARD_REPO = "kylejegbert-boop/Quizzen";
+      const HARD_BRANCH = "main";
+      const HARD_PATH = ""; // leave blank if JSONs are in repo root
+      let owner="", repo="";
+      try {
+        ({ owner, repo } = parseOwnerRepoFromInput(HARD_REPO));
+      } catch (e) {
+        console.warn("Hardwired repo parse failed:", e);
+        return;
+      }
+
+      if (ghRepoInput) ghRepoInput.value = HARD_REPO;
+      if (ghBranchInput) ghBranchInput.value = HARD_BRANCH;
+      if (ghPathInput) ghPathInput.value = HARD_PATH;
+      const ghWrap = document.getElementById('github-loader');
+      if (ghWrap) ghWrap.style.display = 'none'; // hide strip
+
+      if (toggleModeBtn) toggleModeBtn.disabled = true;
+      if (deleteQuizBtn) deleteQuizBtn.disabled = true;
+      if (saveQuizBtn)   saveQuizBtn.disabled = true;
+      if (quizSelect)    quizSelect.disabled = true;
+
+      await loadQuizzesFromGitHub({ owner, repo, path: HARD_PATH, branch: HARD_BRANCH });
+    } catch (e) {
+      console.warn("Hardwired autoload failed:", e);
+    } finally {
+      if (quizSelect) quizSelect.disabled = false;
+      if (toggleModeBtn) toggleModeBtn.disabled = false;
+      if (deleteQuizBtn) deleteQuizBtn.disabled = false;
+      if (saveQuizBtn)   saveQuizBtn.disabled = false;
+      updateQuizSelect();
+    }
+  })();
+
+  // --- Stronger cache-busting for GitHub fetches ---
+  async function githubListJsonFiles({ owner, repo, path = '', branch = 'main' }) {
+    const encPath = path ? encodeURIComponent(path) : '';
+    const api = `https://api.github.com/repos/${owner}/${repo}/contents/${encPath}?ref=${encodeURIComponent(branch)}&t=${Date.now()}`;
+    const res = await fetch(api, { headers: { 'Accept': 'application/vnd.github+json' }, cache: 'no-store' });
+    if (!res.ok) throw new Error(`GitHub API error ${res.status} – check repo/path/branch`);
+    const data = await res.json();
+    const items = Array.isArray(data) ? data : [data];
+    return items
+      .filter(it => it.type === 'file' && /\.json$/i.test(it.name) && it.download_url)
+      .map(it => ({ name: it.name.replace(/\.json$/i, ''), url: it.download_url + `?t=${Date.now()}` }));
+  }
+  async function fetchQuizJson(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Failed to download ${url} (${res.status})`);
+    return res.json();
+  }
+
+  // --- Refresh controls ---
+  const ghRefreshBtn = document.getElementById('gh-refresh');
+  const ghAutoRefreshChk = document.getElementById('gh-auto-refresh');
+  let ghAutoRefreshTimer = null;
+
+  async function refreshFromHardwiredRepo() {
+    try {
+      const HARD_REPO = "kylejegbert-boop/Quizzen";
+      const HARD_BRANCH = "main";
+      const HARD_PATH = "";
+      const { owner, repo } = parseOwnerRepoFromInput(HARD_REPO);
+
+      // Fetch fresh list and merge in any *new* quizzes by filename (name or imageSrc fingerprint)
+      const files = await githubListJsonFiles({ owner, repo, path: HARD_PATH, branch: HARD_BRANCH });
+      const existingNames = new Set(quizzes.map(q => (q.name || '').toLowerCase()));
+      const newlyLoaded = [];
+
+      for (const f of files) {
+        try {
+          const q = await fetchQuizJson(f.url);
+          if (!q || !q.data || !q.data.imageSrc || !Array.isArray(q.data.hotspots)) continue;
+          const nm = (q.name || f.name).toLowerCase();
+          // Replace if same name exists; otherwise append
+          const idx = quizzes.findIndex(x => (x.name || '').toLowerCase() == nm);
+          q.name = q.name || f.name;
+          if (idx >= 0) {
+            quizzes[idx] = q;
+          } else {
+            quizzes.push(q);
+          }
+          newlyLoaded.push(q);
+        } catch {}
+      }
+
+      updateQuizSelect();
+      loadQuiz(currentQuizIndex);
+      renderQuizGallery();
+      highlightActiveCard();
+
+    } catch (e) {
+      console.warn("Refresh failed:", e);
+    }
+  }
+
+  if (ghRefreshBtn) {
+    ghRefreshBtn.addEventListener('click', async () => {
+      // Disable during refresh
+      ghRefreshBtn.disabled = true;
+      await refreshFromHardwiredRepo();
+      ghRefreshBtn.disabled = false;
+    });
+  }
+
+  if (ghAutoRefreshChk) {
+    ghAutoRefreshChk.addEventListener('change', () => {
+      if (ghAutoRefreshChk.checked) {
+        // refresh every 60s
+        ghAutoRefreshTimer = setInterval(refreshFromHardwiredRepo, 60000);
+      } else {
+        if (ghAutoRefreshTimer) { clearInterval(ghAutoRefreshTimer); ghAutoRefreshTimer = null; }
+      }
+    });
+  }
+
+  // Player-only: lock to Play Mode and sanitize interactions
+  try {
+    inPlayMode = true;
+    if (typeof updateModeLabel === 'function') updateModeLabel();
+    // Ensure any edit actions are inert
+    const noop = ()=>{};
+    if (typeof addHotspot === 'function') addHotspot = noop;
+    if (typeof saveCurrentQuiz === 'function') saveCurrentQuiz = noop;
+    if (typeof deleteCurrentQuiz === 'function') deleteCurrentQuiz = noop;
+  } catch {}
+
+  // --- Force Player Mode (improved) ---
+  try {
+    inPlayMode = true;
+
+    if (typeof updateModeLabel === 'function') {
+      updateModeLabel = function() {
+        inPlayMode = true;
+        if (typeof modeLabel !== 'undefined') {
+          modeLabel.textContent = 'Play Mode';
+        }
+      };
+      updateModeLabel();
+    }
+
+    if (typeof togglePlayMode === 'function') {
+      togglePlayMode = function() {
+        inPlayMode = true;
+        if (typeof updateModeLabel === 'function') updateModeLabel();
+      };
+    }
+
+    if (typeof loadQuiz === 'function') {
+      const __origLoadQuiz = loadQuiz;
+      loadQuiz = function(index) {
+        const ret = __origLoadQuiz(index);
+        inPlayMode = true;
+        if (typeof updateModeLabel === 'function') updateModeLabel();
+        // Enter play UI automatically
+        if (typeof enterPlayMode === 'function') enterPlayMode();
+        return ret;
+      };
+    }
+
+    // Force any initial quiz to enter play mode UI
+    if (typeof enterPlayMode === 'function' && currentQuizIndex >= 0) {
+      enterPlayMode();
+    }
+  } catch (e) {
+    console.warn('Failed to lock play mode:', e);
+  }
+
+  // --- Player refinements ---
+  try {
+    // Hide Back-to-Edit button
+    const backBtn = document.getElementById('back-to-edit-btn');
+    if (backBtn) backBtn.style.display = 'none';
+
+    // Override loadQuiz to randomize hotspot order
+    if (typeof loadQuiz === 'function') {
+      const __origLoadQuiz = loadQuiz;
+      loadQuiz = function(index) {
+        const ret = __origLoadQuiz(index);
+        // Shuffle hotspots if present
+        if (quizzes[index] && quizzes[index].data && Array.isArray(quizzes[index].data.hotspots)) {
+          quizzes[index].data.hotspots = quizzes[index].data.hotspots
+            .map(v => ({ v, sort: Math.random() }))
+            .sort((a, b) => a.sort - b.sort)
+            .map(({ v }) => v);
+        }
+        inPlayMode = true;
+        if (typeof updateModeLabel === 'function') updateModeLabel();
+        if (typeof enterPlayMode === 'function') enterPlayMode();
+        return ret;
+      };
+    }
+  } catch (e) {
+    console.warn('Failed to apply player refinements:', e);
+  }
+
+  // --- Player accuracy tracking + remove Edit button ---
+  try {
+    // Ensure Back-to-Edit is removed
+    const backBtn = document.getElementById('back-to-edit-btn');
+    if (backBtn) backBtn.remove();
+
+    // Accuracy counters
+    let playerCorrect = 0;
+    let playerTotal = 0;
+
+    // Wrap enterPlayMode to reset counters
+    if (typeof enterPlayMode === 'function') {
+      const __origEnterPlayMode = enterPlayMode;
+      enterPlayMode = function() {
+        playerCorrect = 0;
+        playerTotal = 0;
+        __origEnterPlayMode();
+      };
+    }
+
+    // Wrap the answer-checking logic
+    if (typeof checkAnswer === 'function') {
+      const __origCheckAnswer = checkAnswer;
+      checkAnswer = function(selected, correct) {
+        playerTotal++;
+        if (selected === correct) playerCorrect++;
+        const ret = __origCheckAnswer(selected, correct);
+
+        // If quiz finished, show accuracy
+        if (playerTotal === quizzes[currentQuizIndex].data.hotspots.length) {
+          const pct = Math.round((playerCorrect / playerTotal) * 100);
+          setTimeout(() => {
+            
+    const existing = document.getElementById('results-panel');
+    if (existing) existing.remove();
+    const panel = document.createElement('div');
+    panel.id = 'results-panel';
+    panel.innerHTML = `<h3>Results</h3>
+      <p>You got ${playerCorrect} of ${playerTotal} correct (${pct}% accuracy).</p>
+      <button id="replay-btn">Replay Quiz</button>
+      <button id="choose-btn">Choose Another</button>`;
+    const container = document.getElementById('app') || document.body;
+    container.appendChild(panel);
+    document.getElementById('replay-btn').addEventListener('click', ()=>{
+      loadQuiz(currentQuizIndex);
+    });
+    document.getElementById('choose-btn').addEventListener('click', ()=>{
+      window.scrollTo({ top: document.getElementById('quiz-gallery-section').offsetTop, behavior: 'smooth'});
+    });
+    
+          }, 300);
+        }
+        return ret;
+      };
+    }
+  } catch (e) {
+    console.warn('Failed to apply accuracy tracker:', e);
+  }
+
+  // --- Remove Back-to-Edit button on load ---
+  (function(){
+    const backBtn = document.getElementById('back-to-edit-btn');
+    if (backBtn) backBtn.remove();
+  })();
+
+  // --- Remove Back-to-Edit button if present ---
+  (function(){
+    const rm = ()=>{
+      const backBtn = document.getElementById('back-to-edit-btn');
+      if (backBtn) backBtn.remove();
+    };
+    rm();
+    document.addEventListener('DOMContentLoaded', rm);
+  })();
+
+  
+
+  
+
+  // --- Clean Accuracy Tracking hooked into handlePlayClick ---
+  try {
+    let playerCorrect = 0;
+    let playerTotal = 0;
+
+    if (typeof enterPlayMode === 'function') {
+      const __origEnterPlayMode = enterPlayMode;
+      enterPlayMode = function() {
+        playerCorrect = 0;
+        playerTotal = 0;
+        __origEnterPlayMode();
+      };
+    }
+
+    if (typeof handlePlayClick === 'function') {
+      const __origHandlePlayClick = handlePlayClick;
+      handlePlayClick = function(clickedIndex) {
+        const hotspots = quizzes[currentQuizIndex].data.hotspots;
+        if (currentQuestionIndex >= hotspots.length) return;
+
+        playerTotal++;
+        if (clickedIndex === currentQuestionIndex) playerCorrect++;
+
+        const ret = __origHandlePlayClick(clickedIndex);
+
+        // If finished, show results panel
+        if (currentQuestionIndex >= hotspots.length) {
+          const pct = Math.round((playerCorrect / playerTotal) * 100);
+          setTimeout(() => {
+            const existing = document.getElementById('results-panel');
+            if (existing) existing.remove();
+            const panel = document.createElement('div');
+            panel.id = 'results-panel';
+            panel.innerHTML = `<h3>Results</h3>
+              <div class="accuracy">${pct}%</div>
+              <div class="progress"><div class="progress-bar" style="width:${pct}%">${playerCorrect}/${playerTotal}</div></div>
+              <button id="replay-btn">Replay Quiz</button>
+              <button id="choose-btn">Choose Another</button>`;
+            const container = document.getElementById('app') || document.body;
+            container.appendChild(panel);
+            document.getElementById('replay-btn').addEventListener('click', ()=>{
+              loadQuiz(currentQuizIndex);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+            document.getElementById('choose-btn').addEventListener('click', ()=>{
+              const gal = document.getElementById('quiz-gallery-section');
+              if (gal) gal.scrollIntoView({ behavior: 'smooth' });
+            });
+            panel.scrollIntoView({ behavior: 'smooth' });
+          }, 300);
+        }
+
+        return ret;
+      };
+    }
+  } catch (e) {
+    console.warn('Failed to apply clean accuracy tracking:', e);
+  }
+
+  // --- Persistent correct hotspot marking ---
+  try {
+    if (typeof handlePlayClick === 'function') {
+      const __origHandlePlayClick = handlePlayClick;
+      handlePlayClick = function(clickedIndex) {
+        const ret = __origHandlePlayClick(clickedIndex);
+
+        // If correct, mark hotspot permanently green
+        if (clickedIndex === currentQuestionIndex - 1) { // after increment in original logic
+          const spot = document.querySelector(`[data-index="${clickedIndex}"]`);
+          if (spot) spot.classList.add('hotspot-correct');
+        }
+
+        return ret;
+      };
+    }
+  } catch (e) {
+    console.warn('Failed to patch hotspot marking:', e);
+  }
+})();
+</script>
+
+</body>
+</html>
